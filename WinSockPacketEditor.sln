@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WPELibrary", "WPELibrary\WP
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WinsockPacketEditor", "WinsockPacketEditor\WinsockPacketEditor.csproj", "{B5ED16ED-ABD5-438B-A589-E8ACC2377432}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WPE.Headless.Inject", "WPE.Headless\WPE.Headless.Inject\WPE.Headless.Inject.csproj", "{B11C0F32-7A8E-4F9E-9A1A-001122334455}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WPE.Headless.Host", "WPE.Headless\WPE.Headless.Host\WPE.Headless.Host.csproj", "{C22D1F43-8B9F-5A0F-AB2B-112233445566}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{B5ED16ED-ABD5-438B-A589-E8ACC2377432}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B5ED16ED-ABD5-438B-A589-E8ACC2377432}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B5ED16ED-ABD5-438B-A589-E8ACC2377432}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B11C0F32-7A8E-4F9E-9A1A-001122334455}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B11C0F32-7A8E-4F9E-9A1A-001122334455}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B11C0F32-7A8E-4F9E-9A1A-001122334455}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B11C0F32-7A8E-4F9E-9A1A-001122334455}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C22D1F43-8B9F-5A0F-AB2B-112233445566}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C22D1F43-8B9F-5A0F-AB2B-112233445566}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C22D1F43-8B9F-5A0F-AB2B-112233445566}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C22D1F43-8B9F-5A0F-AB2B-112233445566}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,0 +1,26 @@
+{
+  "name": "wpe-headless-mcp",
+  "version": "1.0.0",
+  "description": "Serveur MCP pour WPE x64 headless — capture/injection/envoi de paquets Winsock via Claude",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "wpe-headless-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

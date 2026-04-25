@@ -1,0 +1,14 @@
+{
+  "_comment": "Template — sera remplacé avec des chemins absolus par WPE.Headless\\setup.ps1. Renommez en .mcp.json pour activer le scope projet.",
+  "mcpServers": {
+    "wpe-headless": {
+      "command": "node",
+      "args": [
+        "${REPO_ROOT}/WPE.Headless/mcp-server/dist/index.js"
+      ],
+      "env": {
+        "WPE_HOST_EXE": "${REPO_ROOT}/WPE.Headless/WPE.Headless.Host/bin/Release/WPE.Headless.Host.exe"
+      }
+    }
+  }
+}
