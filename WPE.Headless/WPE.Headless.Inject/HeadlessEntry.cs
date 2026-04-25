@@ -2,7 +2,9 @@ using EasyHook;
 using System;
 using System.IO;
 using System.IO.Pipes;
+using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -171,6 +173,15 @@ namespace WPE.Headless.Inject
             }
         }
 
+        // Local P/Invokes so we don't depend on WPELibrary's NativeMethods visibility
+        // (WS2_32 is internal there). Sockets are process-local handles, so calling
+        // these DllImports inside the injected process targets the same Winsock state.
+        [DllImport("WS2_32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true, EntryPoint = "send")]
+        private static extern int Ws2SendInternal(int s, IntPtr buf, int len, SocketFlags flags);
+
+        [DllImport("WSOCK32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true, EntryPoint = "send")]
+        private static extern int Ws1SendInternal(int s, IntPtr buf, int len, SocketFlags flags);
+
         private void DoSendPacket(string line)
         {
             var sockStr = ExtractJsonString(line, "socket");
@@ -184,12 +195,12 @@ namespace WPE.Headless.Inject
             IntPtr buf = IntPtr.Zero;
             try
             {
-                buf = System.Runtime.InteropServices.Marshal.AllocHGlobal(data.Length);
-                System.Runtime.InteropServices.Marshal.Copy(data, 0, buf, data.Length);
+                buf = Marshal.AllocHGlobal(data.Length);
+                Marshal.Copy(data, 0, buf, data.Length);
 
                 int sent = typeStr.StartsWith("WS1")
-                    ? WPELibrary.Lib.NativeMethods.WSock32.send(sock, buf, data.Length, System.Net.Sockets.SocketFlags.None)
-                    : WPELibrary.Lib.NativeMethods.WS2_32.send(sock, buf, data.Length, System.Net.Sockets.SocketFlags.None);
+                    ? Ws1SendInternal(sock, buf, data.Length, SocketFlags.None)
+                    : Ws2SendInternal(sock, buf, data.Length, SocketFlags.None);
 
                 TryWriteEvent("send_ack", "{\"sent\":" + sent + "}");
             }
@@ -199,7 +210,7 @@ namespace WPE.Headless.Inject
             }
             finally
             {
-                if (buf != IntPtr.Zero) System.Runtime.InteropServices.Marshal.FreeHGlobal(buf);
+                if (buf != IntPtr.Zero) Marshal.FreeHGlobal(buf);
             }
         }
 

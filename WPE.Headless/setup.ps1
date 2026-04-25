@@ -36,6 +36,7 @@ function Get-CommandPath([string]$Name) {
 # ----- paths -----
 $Root      = (Resolve-Path "$PSScriptRoot\..").Path
 $Solution  = Join-Path $Root "WinSockPacketEditor.sln"
+$HostCsproj = Join-Path $Root "WPE.Headless\WPE.Headless.Host\WPE.Headless.Host.csproj"
 $Headless  = Join-Path $Root "WPE.Headless"
 $HostProj  = Join-Path $Headless "WPE.Headless.Host"
 $HostBin   = Join-Path $HostProj "bin\$Configuration"
@@ -101,13 +102,18 @@ function Find-MSBuild {
 }
 
 # ----- 2. msbuild -----
-Write-Step "Building $Solution ($Configuration)"
+# We build only WPE.Headless.Host.csproj (which transitively builds WPELibrary
+# and WPE.Headless.Inject). This skips the WinForms shell project
+# WinsockPacketEditor.csproj, which fails with MSB3323 unless a ClickOnce
+# signing certificate is installed - and we don't need its UI for the headless
+# MCP path.
+Write-Step "Building $HostCsproj ($Configuration)"
 $MsBuild = Find-MSBuild
 if (-not $MsBuild) {
     throw "MSBuild not found. Install Visual Studio 2019/2022/2026 (workload 'Desktop development with .NET') or the Build Tools (https://aka.ms/vs/17/release/vs_BuildTools.exe), then re-run."
 }
 Write-Ok "Using $MsBuild"
-& $MsBuild $Solution "/p:Configuration=$Configuration" "/p:Platform=Any CPU" /m /nologo /v:minimal
+& $MsBuild $HostCsproj "/p:Configuration=$Configuration" "/p:Platform=AnyCPU" /m /nologo /v:minimal /restore
 if ($LASTEXITCODE -ne 0) { throw "msbuild failed" }
 Write-Ok "OK"
 
