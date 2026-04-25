@@ -1,17 +1,20 @@
-# WPE.Headless — script d'installation Windows pour Claude Code (MCP)
+# WPE.Headless - Windows install script for Claude Code (MCP)
 #
-# Étapes :
-#   1. Restaure les packages NuGet (télécharge nuget.exe si absent)
-#   2. Compile la solution .NET 4.8 en Release (WPELibrary, WinsockPacketEditor,
-#      WPE.Headless.Inject, WPE.Headless.Host) via MSBuild
-#   3. Copie WPE.Headless.Inject.dll + EasyHook* à côté du host exe
-#   4. Installe et compile le serveur MCP TypeScript
-#   5. Écrit WPE.Headless/mcp-server/.env avec WPE_HOST_EXE = chemin absolu
-#   6. Met à jour ../.mcp.json avec les chemins absolus pour Claude Code
+# Steps:
+#   1. Restore NuGet packages (downloads nuget.exe if missing)
+#   2. Build the .NET 4.8 solution in Release via MSBuild
+#      (WPELibrary, WinsockPacketEditor, WPE.Headless.Inject, WPE.Headless.Host)
+#   3. Copy WPE.Headless.Inject.dll + EasyHook* next to the host exe
+#   4. Install and build the TypeScript MCP server
+#   5. Write WPE.Headless/mcp-server/.env with WPE_HOST_EXE = absolute path
+#   6. Generate ../.mcp.json with absolute paths for Claude Code (project scope)
 #
-# Utilisation (depuis la racine du dépôt) :
+# Usage (from repo root):
 #   powershell -ExecutionPolicy Bypass -File .\WPE.Headless\setup.ps1
-# Compatible Windows PowerShell 5.1 et PowerShell 7+.
+# Compatible with Windows PowerShell 5.1 (powershell.exe) and PowerShell 7+ (pwsh).
+#
+# This file is intentionally ASCII-only: PowerShell 5.1 reads .ps1 as ANSI when
+# there is no UTF-8 BOM, which corrupts non-ASCII characters.
 
 [CmdletBinding()]
 param(
@@ -24,7 +27,13 @@ function Write-Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "    $msg" -ForegroundColor Green }
 function Write-Warn2($m)  { Write-Host "    $m" -ForegroundColor Yellow }
 
-# ----- chemins -----
+function Get-CommandPath([string]$Name) {
+    $cmd = Get-Command $Name -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    return $null
+}
+
+# ----- paths -----
 $Root      = (Resolve-Path "$PSScriptRoot\..").Path
 $Solution  = Join-Path $Root "WinSockPacketEditor.sln"
 $Headless  = Join-Path $Root "WPE.Headless"
@@ -37,32 +46,26 @@ $McpDir    = Join-Path $Headless "mcp-server"
 $McpEntry  = Join-Path $McpDir   "dist\index.js"
 $McpJson   = Join-Path $Root     ".mcp.json"
 
-if (!(Test-Path $Solution)) { throw "Solution introuvable : $Solution" }
-
-function Get-CommandPath([string]$Name) {
-    $cmd = Get-Command $Name -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
-    return $null
-}
+if (!(Test-Path $Solution)) { throw "Solution not found: $Solution" }
 
 # ----- 1. nuget restore -----
-Write-Step "Restauration des packages NuGet"
+Write-Step "Restoring NuGet packages"
 $Nuget = Get-CommandPath "nuget"
 if (-not $Nuget) {
     $Nuget = Join-Path $env:TEMP "nuget.exe"
     if (-not (Test-Path $Nuget)) {
-        Write-Warn2 "nuget.exe non installé : téléchargement dans $Nuget"
-        # TLS 1.2 obligatoire sur Windows PowerShell 5.1 pour dist.nuget.org
+        Write-Warn2 "nuget.exe not found, downloading to $Nuget"
+        # PS 5.1 defaults to TLS 1.0 - dist.nuget.org requires TLS 1.2
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $Nuget -UseBasicParsing
     }
 }
 & $Nuget restore $Solution
-if ($LASTEXITCODE -ne 0) { throw "nuget restore a échoué" }
+if ($LASTEXITCODE -ne 0) { throw "nuget restore failed" }
 Write-Ok "OK"
 
 # ----- 2. msbuild -----
-Write-Step "Compilation de $Solution ($Configuration)"
+Write-Step "Building $Solution ($Configuration)"
 $MsBuild = Get-CommandPath "msbuild"
 if (-not $MsBuild) {
     $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -71,16 +74,16 @@ if (-not $MsBuild) {
     }
 }
 if (-not $MsBuild) {
-    throw "MSBuild introuvable. Installez Visual Studio 2019/2022 (workload .NET desktop) ou les Build Tools (https://aka.ms/vs/17/release/vs_BuildTools.exe — workload 'Outils de génération .NET desktop'), puis relancez."
+    throw "MSBuild not found. Install Visual Studio 2019/2022 (workload 'Desktop development with .NET') or the Build Tools (https://aka.ms/vs/17/release/vs_BuildTools.exe), then re-run."
 }
 & $MsBuild $Solution "/p:Configuration=$Configuration" "/p:Platform=Any CPU" /m /nologo /v:minimal
-if ($LASTEXITCODE -ne 0) { throw "msbuild a échoué" }
+if ($LASTEXITCODE -ne 0) { throw "msbuild failed" }
 Write-Ok "OK"
 
-if (!(Test-Path $HostExe)) { throw "Build OK mais $HostExe absent" }
+if (!(Test-Path $HostExe)) { throw "Build succeeded but $HostExe is missing" }
 
-# ----- 3. copier inject + EasyHook à côté de l'exe host -----
-Write-Step "Copie des dépendances natives à côté du host"
+# ----- 3. copy inject + EasyHook next to host exe -----
+Write-Step "Copying native dependencies next to host exe"
 foreach ($f in @(
     "WPE.Headless.Inject.dll",
     "WPE.Headless.Inject.pdb"
@@ -102,28 +105,28 @@ foreach ($f in @(
 Write-Ok "OK ($HostBin)"
 
 # ----- 4. MCP server (npm install + build) -----
-Write-Step "Installation et build du serveur MCP TypeScript"
+Write-Step "Installing and building the TypeScript MCP server"
 Push-Location $McpDir
 try {
     $npm = Get-CommandPath "npm.cmd"
     if (-not $npm) { $npm = Get-CommandPath "npm" }
-    if (-not $npm) { throw "npm introuvable. Installez Node.js 18+ depuis https://nodejs.org/" }
+    if (-not $npm) { throw "npm not found. Install Node.js 18+ from https://nodejs.org/" }
     & $npm install --no-audit --no-fund
-    if ($LASTEXITCODE -ne 0) { throw "npm install a échoué" }
+    if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
     & $npm run build
-    if ($LASTEXITCODE -ne 0) { throw "npm run build a échoué" }
+    if ($LASTEXITCODE -ne 0) { throw "npm run build failed" }
 } finally { Pop-Location }
-if (!(Test-Path $McpEntry)) { throw "Build TS OK mais $McpEntry absent" }
+if (!(Test-Path $McpEntry)) { throw "TS build succeeded but $McpEntry is missing" }
 Write-Ok "OK"
 
-# ----- 5. écrire .env -----
-Write-Step "Écriture de $McpDir\.env"
+# ----- 5. write .env -----
+Write-Step "Writing $McpDir\.env"
 $envContent = "WPE_HOST_EXE=$HostExe`n"
-Set-Content -Path (Join-Path $McpDir ".env") -Value $envContent -Encoding UTF8
+Set-Content -Path (Join-Path $McpDir ".env") -Value $envContent -Encoding ASCII
 Write-Ok "OK"
 
-# ----- 6. .mcp.json prêt pour Claude Code -----
-Write-Step "Génération de $McpJson (configuration MCP de Claude Code)"
+# ----- 6. .mcp.json for Claude Code -----
+Write-Step "Generating $McpJson (Claude Code MCP config)"
 $mcpConfig = [ordered]@{
     mcpServers = [ordered]@{
         "wpe-headless" = [ordered]@{
@@ -135,23 +138,23 @@ $mcpConfig = [ordered]@{
         }
     }
 }
-$mcpConfig | ConvertTo-Json -Depth 6 | Set-Content -Path $McpJson -Encoding UTF8
+$mcpConfig | ConvertTo-Json -Depth 6 | Set-Content -Path $McpJson -Encoding ASCII
 Write-Ok "OK"
 
-# ----- résumé -----
+# ----- summary -----
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor Green
-Write-Host " Installation terminée." -ForegroundColor Green
+Write-Host " Install complete." -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host " Host exe : $HostExe"
 Write-Host " MCP js   : $McpEntry"
-Write-Host " .mcp.json: $McpJson  (project-scoped, détecté automatiquement par Claude Code)"
+Write-Host " .mcp.json: $McpJson  (project scope, auto-detected by Claude Code)"
 Write-Host ""
-Write-Host " Brancher manuellement à Claude Code (alternative) :"
+Write-Host " Manual Claude Code wiring (alternative):"
 Write-Host "   claude mcp add wpe-headless --scope user node `"$McpEntry`""
 Write-Host ""
-Write-Host " Tester :"
+Write-Host " Test:"
 Write-Host "   claude mcp list"
 Write-Host "   claude mcp get wpe-headless"
 Write-Host ""
