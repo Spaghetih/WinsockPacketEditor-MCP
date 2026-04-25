@@ -64,18 +64,49 @@ if (-not $Nuget) {
 if ($LASTEXITCODE -ne 0) { throw "nuget restore failed" }
 Write-Ok "OK"
 
-# ----- 2. msbuild -----
-Write-Step "Building $Solution ($Configuration)"
-$MsBuild = Get-CommandPath "msbuild"
-if (-not $MsBuild) {
+function Find-MSBuild {
+    # 1. PATH
+    $p = Get-CommandPath "msbuild.exe"
+    if (-not $p) { $p = Get-CommandPath "msbuild" }
+    if ($p) { return $p }
+
+    # 2. vswhere (any product, any prerelease, just needs MSBuild)
     $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
     if (Test-Path $vswhere) {
-        $MsBuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
+        $hits = & $vswhere -prerelease -products * -latest `
+            -requires Microsoft.Component.MSBuild `
+            -find "MSBuild\**\Bin\MSBuild.exe" 2>$null
+        if ($hits) { return ($hits | Select-Object -First 1) }
+        # widen: any MSBuild without requires
+        $hits = & $vswhere -prerelease -products * -all `
+            -find "MSBuild\**\Bin\MSBuild.exe" 2>$null
+        if ($hits) { return ($hits | Select-Object -First 1) }
     }
+
+    # 3. Brute-force scan of common install roots (VS 2017..2026 + BuildTools)
+    $roots = @(
+        "${env:ProgramFiles}\Microsoft Visual Studio",
+        "${env:ProgramFiles(x86)}\Microsoft Visual Studio"
+    )
+    foreach ($root in $roots) {
+        if (-not (Test-Path $root)) { continue }
+        $found = Get-ChildItem -Path $root -Recurse -Filter "MSBuild.exe" `
+            -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\MSBuild\\(Current|\d+\.0)\\Bin\\MSBuild\.exe$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+        if ($found) { return $found.FullName }
+    }
+    return $null
 }
+
+# ----- 2. msbuild -----
+Write-Step "Building $Solution ($Configuration)"
+$MsBuild = Find-MSBuild
 if (-not $MsBuild) {
-    throw "MSBuild not found. Install Visual Studio 2019/2022 (workload 'Desktop development with .NET') or the Build Tools (https://aka.ms/vs/17/release/vs_BuildTools.exe), then re-run."
+    throw "MSBuild not found. Install Visual Studio 2019/2022/2026 (workload 'Desktop development with .NET') or the Build Tools (https://aka.ms/vs/17/release/vs_BuildTools.exe), then re-run."
 }
+Write-Ok "Using $MsBuild"
 & $MsBuild $Solution "/p:Configuration=$Configuration" "/p:Platform=Any CPU" /m /nologo /v:minimal
 if ($LASTEXITCODE -ne 0) { throw "msbuild failed" }
 Write-Ok "OK"
