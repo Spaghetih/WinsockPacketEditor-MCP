@@ -36,8 +36,10 @@ Pré-requis : Visual Studio 2019/2022 ou les **Build Tools for Visual Studio** (
 
 ```powershell
 # Depuis la racine du dépôt
-pwsh -ExecutionPolicy Bypass -File .\WPE.Headless\setup.ps1
+powershell -ExecutionPolicy Bypass -File .\WPE.Headless\setup.ps1
 ```
+
+> Compatible Windows PowerShell 5.1 (`powershell.exe`, livré avec Windows) et PowerShell 7+ (`pwsh.exe`).
 
 Le script :
 

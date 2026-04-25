@@ -9,8 +9,9 @@
 #   5. Écrit WPE.Headless/mcp-server/.env avec WPE_HOST_EXE = chemin absolu
 #   6. Met à jour ../.mcp.json avec les chemins absolus pour Claude Code
 #
-# Utilisation :
-#   pwsh -ExecutionPolicy Bypass -File .\WPE.Headless\setup.ps1
+# Utilisation (depuis la racine du dépôt) :
+#   powershell -ExecutionPolicy Bypass -File .\WPE.Headless\setup.ps1
+# Compatible Windows PowerShell 5.1 et PowerShell 7+.
 
 [CmdletBinding()]
 param(
@@ -38,14 +39,22 @@ $McpJson   = Join-Path $Root     ".mcp.json"
 
 if (!(Test-Path $Solution)) { throw "Solution introuvable : $Solution" }
 
+function Get-CommandPath([string]$Name) {
+    $cmd = Get-Command $Name -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    return $null
+}
+
 # ----- 1. nuget restore -----
 Write-Step "Restauration des packages NuGet"
-$Nuget = (Get-Command nuget -ErrorAction SilentlyContinue)?.Source
+$Nuget = Get-CommandPath "nuget"
 if (-not $Nuget) {
     $Nuget = Join-Path $env:TEMP "nuget.exe"
     if (-not (Test-Path $Nuget)) {
         Write-Warn2 "nuget.exe non installé : téléchargement dans $Nuget"
-        Invoke-WebRequest "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $Nuget
+        # TLS 1.2 obligatoire sur Windows PowerShell 5.1 pour dist.nuget.org
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $Nuget -UseBasicParsing
     }
 }
 & $Nuget restore $Solution
@@ -54,7 +63,7 @@ Write-Ok "OK"
 
 # ----- 2. msbuild -----
 Write-Step "Compilation de $Solution ($Configuration)"
-$MsBuild = (Get-Command msbuild -ErrorAction SilentlyContinue)?.Source
+$MsBuild = Get-CommandPath "msbuild"
 if (-not $MsBuild) {
     $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
     if (Test-Path $vswhere) {
@@ -62,7 +71,7 @@ if (-not $MsBuild) {
     }
 }
 if (-not $MsBuild) {
-    throw "MSBuild introuvable. Installez Visual Studio 2019/2022 (workload .NET desktop) ou les Build Tools, puis relancez."
+    throw "MSBuild introuvable. Installez Visual Studio 2019/2022 (workload .NET desktop) ou les Build Tools (https://aka.ms/vs/17/release/vs_BuildTools.exe — workload 'Outils de génération .NET desktop'), puis relancez."
 }
 & $MsBuild $Solution "/p:Configuration=$Configuration" "/p:Platform=Any CPU" /m /nologo /v:minimal
 if ($LASTEXITCODE -ne 0) { throw "msbuild a échoué" }
@@ -96,8 +105,9 @@ Write-Ok "OK ($HostBin)"
 Write-Step "Installation et build du serveur MCP TypeScript"
 Push-Location $McpDir
 try {
-    $npm = (Get-Command npm -ErrorAction SilentlyContinue)?.Source
-    if (-not $npm) { throw "npm introuvable. Installez Node.js 18+." }
+    $npm = Get-CommandPath "npm.cmd"
+    if (-not $npm) { $npm = Get-CommandPath "npm" }
+    if (-not $npm) { throw "npm introuvable. Installez Node.js 18+ depuis https://nodejs.org/" }
     & $npm install --no-audit --no-fund
     if ($LASTEXITCODE -ne 0) { throw "npm install a échoué" }
     & $npm run build
